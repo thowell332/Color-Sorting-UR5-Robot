@@ -66,7 +66,7 @@ class ur5_mp:
         self.end_effector_link = self.arm.get_end_effector_link()
 
         # Set the reference frame for pose targets
-        reference_frame = "/base_link"
+        reference_frame = "base_link"
 
         # Set the ur5_arm reference frame accordingly
         self.arm.set_pose_reference_frame(reference_frame)
@@ -255,7 +255,7 @@ class ur5_mp:
 
                         self.arm.set_start_state_to_current_state()
                         plan, fraction = self.arm.compute_cartesian_path(self.waypoints, 0.02, 0.0, True)
-                        self.arm.execute(plan[1])
+                        self.arm.execute(plan)
 
                         self.phase = 2
                         tracker.flag2 = 0
@@ -304,7 +304,7 @@ class ur5_mp:
                     rospy.loginfo("Path computed successfully. Moving the arm.")
                     num_pts = len(plan.joint_trajectory.points)
                     rospy.loginfo("\n# intermediate waypoints = "+str(num_pts))
-                    self.arm.execute(plan[1])
+                    self.arm.execute(plan)
                     rospy.loginfo("Path execution complete.")
                 else:
                     rospy.loginfo("Path planning failed")
@@ -362,7 +362,7 @@ class ur5_mp:
                 rospy.loginfo("Path computed successfully. Moving the arm.")
                 num_pts = len(plan.joint_trajectory.points)
                 rospy.loginfo("\n# intermediate waypoints = "+str(num_pts))
-                self.arm.execute(plan[1])
+                self.arm.execute(plan)
                 rospy.loginfo("Path execution complete.")
             else:
                 rospy.loginfo("Path planning failed")

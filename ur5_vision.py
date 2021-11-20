@@ -60,7 +60,7 @@ class ur5_vision:
         lower_red = np.array([ 0,  100, 100])
         upper_red = np.array([10, 255, 255])
         mask = cv2.inRange(hsv, lower_red, upper_red)
-        (_, cnts, _) = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        (cnts, _) = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         #area = cv2.contourArea(cnts)
         h, w, d = image.shape
         # print h, w, d  (800,800,3)

@@ -36,6 +36,7 @@ from std_msgs.msg import Header
 from trajectory_msgs.msg import JointTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint
 tracker = Tracker()
+tracker.blockColor = 0
 class ur5_vision:
     def __init__(self):
         rospy.init_node("ur5_vision", anonymous=False)
@@ -57,21 +58,30 @@ class ur5_vision:
 
         # END HSV
         # BEGIN FILTER
+        # Creates a mask by thresholding for different shades of red
         lower_red = np.array([ 0,  100, 100])
         upper_red = np.array([10, 255, 255])
-        mask = cv2.inRange(hsv, lower_red, upper_red)
-        (cnts, _) = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        mask_red = cv2.inRange(hsv, lower_red, upper_red)
+        # Find contours in the binary masked image
+        # 	Params: mask to find contours in , mode: look for extenal contours, method: approximate using end points
+        (cnts, _) = cv2.findContours(mask_red.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         #area = cv2.contourArea(cnts)
         h, w, d = image.shape
         # print h, w, d  (800,800,3)
+
         #BEGIN FINDER
-        M = cv2.moments(mask)
+        # Finds the center of the masked region
+        # 	Moments are a weighted average of each frame in your image
+        # 	m00 is the total area of the masked region.
+        # 	m10 is the non normalized expected value of the masked x region
+        # 	m01 is the non normalized expected value of the masked y region
+        M = cv2.moments(mask_red)
         if M['m00'] > 0:
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
-
         # cx range (55,750) cy range( 55, ~ )
         # END FINDER
+
         # Isolate largest contour
         #  contour_sizes = [(cv2.contourArea(contour), contour) for contour in cnts]
         #  biggest_contour = max(contour_sizes, key=lambda x: x[0])[1]
@@ -88,9 +98,11 @@ class ur5_vision:
                     tracker.flag1 = self.track_flag
                     tracker.error_x = self.error_x
                     tracker.error_y = self.error_y
+                    tracker.blockColor = 0 # 0 if red, 1 if yello, 2 if blue
                     #(_,_,w_b,h_b)=cv2.boundingRect(c)
                     #print w_b,h_b
                     # BEGIN circle
+                    #	 Draw a dot at the center of the masked region
                     cv2.circle(image, (cx, cy), 10, (0,0,0), -1)
                     cv2.putText(image, "({}, {})".format(int(cx), int(cy)), (int(cx-5), int(cy+15)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
                     cv2.drawContours(image, cnts, -1, (255, 255, 255),1)

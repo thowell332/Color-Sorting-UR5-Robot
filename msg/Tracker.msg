@@ -10,3 +10,4 @@ float64 error_z
 bool flag1
 bool flag2
 bool flag3
+float64 blockColor

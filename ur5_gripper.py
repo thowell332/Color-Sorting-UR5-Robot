@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-
-
-
 import rospy, sys, numpy as np
 import geometry_msgs.msg
 import moveit_msgs.msg

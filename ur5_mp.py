@@ -36,8 +36,6 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 from time import sleep
 tracker = Tracker()
 
-
-
 class ur5_mp:
     def __init__(self):
         rospy.init_node("ur5_mp", anonymous=False)
@@ -116,9 +114,6 @@ class ur5_mp:
             rospy.loginfo("Warnig: target position overlaps with the initial position!")
 
         # self.arm.set_pose_target(wpose)
-
-
-
 
         # Specify default (idle) joint states
         self.default_joint_states = self.arm.get_current_joint_values()

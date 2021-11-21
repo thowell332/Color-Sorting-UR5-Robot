@@ -205,6 +205,7 @@ class ur5_mp:
                 else:
                     if len(self.pointx)==11:
                         tracker.flag2 = 1
+                        tracker.blockColor = 0
                         self.cxy_pub.publish(tracker)
 
                     if len(self.pointx)<12:
@@ -254,6 +255,7 @@ class ur5_mp:
 
                         self.phase = 2
                         tracker.flag2 = 0
+                        tracker.blockColor = 0 # Publish a color of red... this is arbitrary but the blockColor should be initialized before publishing
                         self.cxy_pub.publish(tracker)
 
 

@@ -98,7 +98,7 @@ class ur5_vision:
                     tracker.flag1 = self.track_flag
                     tracker.error_x = self.error_x
                     tracker.error_y = self.error_y
-                    tracker.blockColor = 0 # 0 if red, 1 if yello, 2 if blue
+                    tracker.blockColor = 0 # 0 if red, 1 if yellow, 2 if blue
                     #(_,_,w_b,h_b)=cv2.boundingRect(c)
                     #print w_b,h_b
                     # BEGIN circle

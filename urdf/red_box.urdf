@@ -27,7 +27,7 @@
   </link>
 
 <gazebo reference="base_link">
-  <material>Gazebo/Red</material>
+  <material>Gazebo/Blue</material>
     <mu1>5</mu1>
     <mu2>5</mu2>
 </gazebo>

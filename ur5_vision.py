@@ -56,15 +56,39 @@ class ur5_vision:
         # BEGIN HSV
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
+
+        color_flags = []
+
         # END HSV
         # BEGIN FILTER
         # Creates a mask by thresholding for different shades of red
         lower_red = np.array([ 0,  100, 100])
         upper_red = np.array([10, 255, 255])
         mask_red = cv2.inRange(hsv, lower_red, upper_red)
+        red_cnts, _ = cv2.findContours(mask_red.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        for c in red_cnts:
+           color_flags.append(0)
+
+        # Creates a mask by thresholding for different shades of yellow
+        lower_yellow = np.array([20, 100, 100])
+        upper_yellow = np.array([30, 255, 255])
+        mask_yellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
+        yellow_cnts, _ = cv2.findContours(mask_yellow.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for c in yellow_cnts:
+           color_flags.append(1)
+
+        # Creates a mask by thresholding for different shades of blue
+        lower_blue = np.array([100, 150, 0])
+        upper_blue = np.array([ 140,  255, 255])
+        mask_blue = cv2.inRange(hsv, lower_blue, upper_blue)
+        blue_cnts, _ = cv2.findContours(mask_blue.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for c in blue_cnts:
+           color_flags.append(2)
+
         # Find contours in the binary masked image
         # 	Params: mask to find contours in , mode: look for extenal contours, method: approximate using end points
-        (cnts, _) = cv2.findContours(mask_red.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
         #area = cv2.contourArea(cnts)
         h, w, d = image.shape
         # print h, w, d  (800,800,3)
@@ -75,43 +99,67 @@ class ur5_vision:
         # 	m00 is the total area of the masked region.
         # 	m10 is the non normalized expected value of the masked x region
         # 	m01 is the non normalized expected value of the masked y region
-        M = cv2.moments(mask_red)
-        if M['m00'] > 0:
-            cx = int(M['m10']/M['m00'])
-            cy = int(M['m01']/M['m00'])
+        red_moments = cv2.moments(mask_red)
+        if red_moments['m00'] > 0:
+            red_cx = int(red_moments['m10']/red_moments['m00'])
+            red_cy = int(red_moments['m01']/red_moments['m00'])
+
+        yellow_moments = cv2.moments(mask_yellow)
+        if yellow_moments['m00'] > 0:
+            yellow_cx = int(yellow_moments['m10']/yellow_moments['m00'])
+            yellow_cy = int(yellow_moments['m01']/yellow_moments['m00'])
+
+        blue_moments = cv2.moments(mask_blue)
+        if blue_moments['m00'] > 0:
+            blue_cx = int(blue_moments['m10']/blue_moments['m00'])
+            blue_cy = int(blue_moments['m01']/blue_moments['m00'])
         # cx range (55,750) cy range( 55, ~ )
         # END FINDER
 
         # Isolate largest contour
-        #  contour_sizes = [(cv2.contourArea(contour), contour) for contour in cnts]
-        #  biggest_contour = max(contour_sizes, key=lambda x: x[0])[1]
-            for i, c in enumerate(cnts):
-                area = cv2.contourArea(c)
-                if area > 7500:
-                    self.track_flag = True
-                    self.cx = cx
-                    self.cy = cy
-                    self.error_x = self.cx - w/2
-                    self.error_y = self.cy - (h/2+195)
-                    tracker.x = cx
-                    tracker.y = cy
-                    tracker.flag1 = self.track_flag
-                    tracker.error_x = self.error_x
-                    tracker.error_y = self.error_y
-                    tracker.blockColor = 0 # 0 if red, 1 if yellow, 2 if blue
-                    #(_,_,w_b,h_b)=cv2.boundingRect(c)
-                    #print w_b,h_b
-                    # BEGIN circle
-                    #	 Draw a dot at the center of the masked region
-                    cv2.circle(image, (cx, cy), 10, (0,0,0), -1)
-                    cv2.putText(image, "({}, {})".format(int(cx), int(cy)), (int(cx-5), int(cy+15)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-                    cv2.drawContours(image, cnts, -1, (255, 255, 255),1)
-                    #BGIN CONTROL
-                    break
-                else:
-                    self.track_flag = False
-                    tracker.flag1 = self.track_flag
+        cnts = yellow_cnts + red_cnts + blue_cnts
 
+        contour_sizes = [(cv2.contourArea(contour), contour, color_flags[idx]) for idx, contour in enumerate(cnts)]
+
+        biggest_res = max(contour_sizes, key=lambda x: x[0])
+
+        biggest_contour_area = biggest_res[0]
+        biggest_contour = biggest_res[1]
+        biggest_contour_color = biggest_res[2]
+
+        if biggest_contour_color == 0:
+            cx = red_cx
+            cy = red_cy
+        elif biggest_contour_color == 1:
+            cx = yellow_cx
+            cy = yellow_cy
+        elif biggest_contour_color == 2:
+            cx = blue_cx
+            cy = blue_cy
+
+        if biggest_contour_area > 7500:
+            self.track_flag = True
+            self.cx = cx
+            self.cy = cy
+            self.error_x = self.cx - w/2
+            self.error_y = self.cy - (h/2+195)
+            tracker.x = cx
+            tracker.y = cy
+            tracker.flag1 = self.track_flag
+            tracker.error_x = self.error_x
+            tracker.error_y = self.error_y
+            tracker.blockColor = biggest_contour_color # 0 if red, 1 if yellow, 2 if blue
+            #(_,_,w_b,h_b)=cv2.boundingRect(c)
+            #print w_b,h_b
+            # BEGIN circle
+            #	 Draw a dot at the center of the masked region
+            cv2.circle(image, (cx, cy), 10, (0,0,0), -1)
+            cv2.putText(image, "({}, {})".format(int(cx), int(cy)), (int(cx-5), int(cy+15)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            cv2.drawContours(image, cnts, -1, (255, 255, 255),1)
+            #BGIN CONTROL
+        else:
+            self.track_flag = False
+            tracker.flag1 = self.track_flag
 
         self.cxy_pub.publish(tracker)
         cv2.namedWindow("window", 1)

@@ -77,10 +77,11 @@
       bool get_red_path;
       get_red_path = nh.getParam("/red_box_path", red_box_path);
 
+
       if (!(get_red_path)){
           return 0;}
           else{ROS_INFO_STREAM(red_box_path << " has been extracted");
-}
+      }
 
       std::ifstream red_inXml(red_box_path.c_str());
       std::stringstream red_strStream;

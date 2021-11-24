@@ -5,32 +5,32 @@
   <collision>
     <origin xyz="0 0 0.02" rpy="0 0 0"/>
     <geometry>
-      <cylinder length="0.04" radius="0.02"/>
+      <cylinder length="0.025" radius="0.06"/>
     </geometry>
   </collision>
 
   <visual>
     <origin xyz="0 0 0.02" rpy="0 0 0"/>
     <geometry>
-      <cylinder length="0.04" radius="0.02"/>
+      <cylinder length="0.025" radius="0.06"/>
     </geometry>
   </visual>
 
   <inertial>
     <origin xyz="0 0 0.02" rpy="0 0 0"/>
-    <mass value="0.00001"/>
+    <mass value="0.04"/>
     <inertia
-      ixx="0.00001" ixy="0.0" ixz="0.0"
-      iyy="0.00001" iyz="0.0"
-      izz="0.00001"/>
+      ixx="0.001" ixy="0.0" ixz="0.0"
+      iyy="0.001" iyz="0.0"
+      izz="0.001"/>
   </inertial>
 </link>
 
 <gazebo reference="base_link">
   <material>Gazebo/Yellow</material>
+      <mu1>5</mu1>
+      <mu2>5</mu2>
 </gazebo>
-
-
 
 </robot>
 

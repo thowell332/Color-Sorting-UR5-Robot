@@ -1,4 +1,4 @@
-// spawn the red blocks on the conveyor belt
+// spawn the blocks on the conveyor belt
 // and give them initial speed (by apply_body_wrench) to slide on conveyor
 
 //ros communications:
@@ -72,25 +72,115 @@
       }
       ROS_INFO("set_model_state service is ready");
 
-      //get file path of blocks from parameter service
+      //get file path of red_blocks from parameter service
       std::string red_box_path;
-      bool get_red_path;
-      get_red_path = nh.getParam("/red_box_path", red_box_path);
+      bool get_redbox_path;
+      get_redbox_path = nh.getParam("/red_box_path", red_box_path);
 
 
-      if (!(get_red_path)){
+      if (!(get_redbox_path)){
           return 0;}
           else{ROS_INFO_STREAM(red_box_path << " has been extracted");
       }
 
-      std::ifstream red_inXml(red_box_path.c_str());
-      std::stringstream red_strStream;
-      std::string red_xmlStr;
+      std::ifstream redbox_inXml(red_box_path.c_str());
+      std::stringstream redbox_strStream;
+      std::string redbox_xmlStr;
 
       /*red_inXml.open(red_box_path.c_str());*/
-      red_strStream << red_inXml.rdbuf();
-      red_xmlStr = red_strStream.str();
+      redbox_strStream << redbox_inXml.rdbuf();
+      redbox_xmlStr = redbox_strStream.str();
      // ROS_INFO_STREAM("urdf: \n" <<red_xmlStr);
+
+      //get file path of red cylinders
+      std::string red_cyl_path;
+      bool get_redcyl_path;
+      get_redcyl_path = nh.getParam("/red_cyl_path", red_cyl_path);
+
+      if (!(get_redcyl_path)){
+          return 0;}
+          else{ROS_INFO_STREAM(red_cyl_path << " has been extracted");
+      }
+
+      std::ifstream redcyl_inXml(red_cyl_path.c_str());
+      std::stringstream redcyl_strStream;
+      std::string redcyl_xmlStr;
+
+      redcyl_strStream << redcyl_inXml.rdbuf();
+      redcyl_xmlStr = redcyl_strStream.str();
+
+      //get file path of blue_blocks from parameter service
+      std::string blue_box_path;
+      bool get_bluebox_path;
+      get_bluebox_path = nh.getParam("/blue_box_path", blue_box_path);
+
+
+      if (!(get_bluebox_path)){
+          return 0;}
+          else{ROS_INFO_STREAM(blue_box_path << " has been extracted");
+      }
+
+      std::ifstream bluebox_inXml(blue_box_path.c_str());
+      std::stringstream bluebox_strStream;
+      std::string bluebox_xmlStr;
+
+      bluebox_strStream << bluebox_inXml.rdbuf();
+      bluebox_xmlStr = bluebox_strStream.str();
+
+      //get file path of blue cylinders
+      std::string blue_cyl_path;
+      bool get_bluecyl_path;
+      get_bluecyl_path = nh.getParam("/blue_cyl_path", blue_cyl_path);
+
+      if (!(get_bluecyl_path)){
+          return 0;}
+          else{ROS_INFO_STREAM(blue_cyl_path << " has been extracted");
+      }
+
+      std::ifstream bluecyl_inXml(blue_cyl_path.c_str());
+      std::stringstream bluecyl_strStream;
+      std::string bluecyl_xmlStr;
+
+      bluecyl_strStream << bluecyl_inXml.rdbuf();
+      bluecyl_xmlStr = bluecyl_strStream.str();
+
+      //get file path of yellow_blocks from parameter service
+      std::string yellow_box_path;
+      bool get_yellowbox_path;
+      get_yellowbox_path = nh.getParam("/yellow_box_path", yellow_box_path);
+
+
+      if (!(get_yellowbox_path)){
+          return 0;}
+          else{ROS_INFO_STREAM(yellow_box_path << " has been extracted");
+      }
+
+      std::ifstream yellowbox_inXml(yellow_box_path.c_str());
+      std::stringstream yellowbox_strStream;
+      std::string yellowbox_xmlStr;
+
+      /*yellow_inXml.open(yellow_box_path.c_str());*/
+      yellowbox_strStream << yellowbox_inXml.rdbuf();
+      yellowbox_xmlStr = yellowbox_strStream.str();
+     // ROS_INFO_STREAM("urdf: \n" <<yellow_xmlStr);
+
+      //get file path of yellow cylinders
+      std::string yellow_cyl_path;
+      bool get_yellowcyl_path;
+      get_yellowcyl_path = nh.getParam("/yellow_cyl_path", yellow_cyl_path);
+
+      if (!(get_yellowcyl_path)){
+          return 0;}
+          else{ROS_INFO_STREAM(yellow_cyl_path << " has been extracted");
+      }
+
+      std::ifstream yellowcyl_inXml(yellow_cyl_path.c_str());
+      std::stringstream yellowcyl_strStream;
+      std::string yellowcyl_xmlStr;
+
+      yellowcyl_strStream << yellowcyl_inXml.rdbuf();
+      yellowcyl_xmlStr = yellowcyl_strStream.str();
+
       // prepare the pawn model service message
       spawn_model_req.initial_pose.position.x = 2;
       spawn_model_req.initial_pose.position.z = 0.2;
@@ -109,7 +199,9 @@
       apply_wrench_req.duration = duration_temp;
       apply_wrench_req.reference_frame = "world";
 
-      int i =0;
+      int i = 0;
+     
+     int block_choice; 
 
       while (ros::ok()){
           std::string index = intToString(i);
@@ -118,11 +210,45 @@
           spawn_model_req.initial_pose.position.y = (float)rand()/(float)(RAND_MAX) * 0.4;  // random between -0.4 to 0.4
           ROS_INFO_STREAM("y position of new box: "
           << spawn_model_req.initial_pose.position.y);
-
-          model_name = "red_blocks__" + index;  // initialize model_name
-          spawn_model_req.model_name = model_name;
-          spawn_model_req.robot_namespace = model_name;
-          spawn_model_req.model_xml = red_xmlStr;
+         
+          //randomly choose which block
+          block_choice = rand() % 6;
+          if (block_choice == 0) {
+              model_name = "red_blocks_" + index;  // initialize model_name
+              spawn_model_req.model_name = model_name;
+              spawn_model_req.robot_namespace = model_name;
+              spawn_model_req.model_xml = redbox_xmlStr;
+          }
+          else if(block_choice == 1) {
+              model_name = "red_cylinder_" + index;  // initialize model_name
+              spawn_model_req.model_name = model_name;
+              spawn_model_req.robot_namespace = model_name;
+              spawn_model_req.model_xml = redcyl_xmlStr;
+          }
+          else if (block_choice == 2) {
+              model_name = "blue_blocks_" + index;  // initialize model_name
+              spawn_model_req.model_name = model_name;
+              spawn_model_req.robot_namespace = model_name;
+              spawn_model_req.model_xml = bluebox_xmlStr;
+          }
+          else if(block_choice == 3) {
+              model_name = "blue_cylinder_" + index;  // initialize model_name
+              spawn_model_req.model_name = model_name;
+              spawn_model_req.robot_namespace = model_name;
+              spawn_model_req.model_xml = bluecyl_xmlStr;
+          }
+          else if (block_choice == 4) {
+              model_name = "yellow_blocks_" + index;  // initialize model_name
+              spawn_model_req.model_name = model_name;
+              spawn_model_req.robot_namespace = model_name;
+              spawn_model_req.model_xml = yellowbox_xmlStr;
+          }
+          else {
+              model_name = "yellow_cylinder_" + index;  // initialize model_name
+              spawn_model_req.model_name = model_name;
+              spawn_model_req.robot_namespace = model_name;
+              spawn_model_req.model_xml = yellowcyl_xmlStr;
+          }
 
           bool call_service = spawnClient.call(spawn_model_req, spawn_model_resp);
           if (call_service) {

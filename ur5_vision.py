@@ -65,8 +65,9 @@ class ur5_vision:
         lower_red = np.array([ 0,  100, 100])
         upper_red = np.array([10, 255, 255])
         mask_red = cv2.inRange(hsv, lower_red, upper_red)
+        # Finds contours for the red region
         red_cnts, _ = cv2.findContours(mask_red.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
+        # For each contour, append the red color flag (a float with a value of 0)
         for c in red_cnts:
            color_flags.append(0)
 
@@ -74,7 +75,9 @@ class ur5_vision:
         lower_yellow = np.array([20, 100, 100])
         upper_yellow = np.array([30, 255, 255])
         mask_yellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
+        # Finds contours for the yellow region
         yellow_cnts, _ = cv2.findContours(mask_yellow.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # For each contour, append the yellow color flag (float of value 1)
         for c in yellow_cnts:
            color_flags.append(1)
 
@@ -82,14 +85,15 @@ class ur5_vision:
         lower_blue = np.array([100, 150, 0])
         upper_blue = np.array([ 140,  255, 255])
         mask_blue = cv2.inRange(hsv, lower_blue, upper_blue)
+        # Find contours for the blue region
         blue_cnts, _ = cv2.findContours(mask_blue.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # For each contour, append the blue color flag (float of value 2)
         for c in blue_cnts:
            color_flags.append(2)
 
         # Find contours in the binary masked image
         # 	Params: mask to find contours in , mode: look for extenal contours, method: approximate using end points
         
-        #area = cv2.contourArea(cnts)
         h, w, d = image.shape
         # print h, w, d  (800,800,3)
 
@@ -117,27 +121,37 @@ class ur5_vision:
         # END FINDER
 
         # Isolate largest contour
-        cnts = yellow_cnts + red_cnts + blue_cnts
+        # Append all the contours in a list
+        cnts = red_cnts + yellow_cnts + blue_cnts
+
 
         contour_sizes = [(cv2.contourArea(contour), contour, color_flags[idx]) for idx, contour in enumerate(cnts)]
-
-        biggest_res = max(contour_sizes, key=lambda x: x[0])
+        
+        # If any contours were found
+        if(len(cnts) > 0):
+            # give us the largest contour (maximizing area) and some meta data... [area of contour, contour, color]
+            biggest_res = max(contour_sizes, key=lambda x: x[0])
+        else: # Default the area to be 0, the contour to be 0, and the color to be 0 (red)
+            biggest_res = [0,0,0]
 
         biggest_contour_area = biggest_res[0]
         biggest_contour = biggest_res[1]
         biggest_contour_color = biggest_res[2]
 
-        if biggest_contour_color == 0:
-            cx = red_cx
-            cy = red_cy
-        elif biggest_contour_color == 1:
-            cx = yellow_cx
-            cy = yellow_cy
-        elif biggest_contour_color == 2:
-            cx = blue_cx
-            cy = blue_cy
-
+        # If the area is large enough to be a block, load data into the Tracker message to be published with ROS
         if biggest_contour_area > 7500:
+            # Depending on the color of the largest contour, set cx and cy equal the the cx and cy of the centroid of that mask
+            if biggest_contour_color == 0:
+                cx = red_cx
+                cy = red_cy
+            elif biggest_contour_color == 1:
+                cx = yellow_cx
+                cy = yellow_cy
+            elif biggest_contour_color == 2:
+                cx = blue_cx
+                cy = blue_cy
+            
+            # Initialize the message to be published
             self.track_flag = True
             self.cx = cx
             self.cy = cy
@@ -149,8 +163,7 @@ class ur5_vision:
             tracker.error_x = self.error_x
             tracker.error_y = self.error_y
             tracker.blockColor = biggest_contour_color # 0 if red, 1 if yellow, 2 if blue
-            #(_,_,w_b,h_b)=cv2.boundingRect(c)
-            #print w_b,h_b
+
             # BEGIN circle
             #	 Draw a dot at the center of the masked region
             cv2.circle(image, (cx, cy), 10, (0,0,0), -1)

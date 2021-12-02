@@ -1,6 +1,3 @@
-# am715
-# Code for movement of sorting cubes
-
 # Duke University
 # ECE 495, Instructor Oca
 # BINS' LOCATIONS: red_bin -y 0.8 -x -0.5 -z 0.05" / blue_bin -y 1.2 -x 0.0 -z 0.05" / yellow_bin -y 0.8 -x 0.5 -z 0.05 - RETRIEVED FROM URDF
@@ -16,8 +13,9 @@ import moveit_commander
 import moveit_msgs.msg
 import geometry_msgs.msg
 from ur5_notebook.msg import Tracker # for vision
-tracker.blockColor = 0 # initialize
 tracker = Tracker()
+tracker.blockColor = 0 # initialize - how to retrieve it??
+
 #import what is needed to calculate distance, angles and other mathematical parts
 from math import pi, tau, dist, fabs, cos, sqrt
 # tau is being used to make things simpler, it represents a 360 degree angle
@@ -105,16 +103,11 @@ class MoveItContext(object):
         self.group_names = group_names
 
     def go_to_joint_state(self):
-        move_group = self.move_group
-
-        ## tau = 2*pi
-        # We get the joint values from the group
-        # This would be useful if I wanted to move the robot to a slighly better configuration
-        joint_goal = move_group.get_current_joint_values()
-
         # Specify default (idle) joint states
-        self.default_joint_states = self.move_group.get_current_joint_values()
-        # each [number] represents a specific joint
+        group_name = "manipulator" #that's the arm planning group
+        move_group = moveit_commander.MoveGroupCommander(group_name)
+
+        self.default_joint_states = move_group.get_current_joint_values()
         self.default_joint_states[0] = -1.57691
         self.default_joint_states[1] = -1.71667
         self.default_joint_states[2] = 1.79266
@@ -122,14 +115,13 @@ class MoveItContext(object):
         self.default_joint_states[4] = -1.5705
         self.default_joint_states[5] = 0.0
 
-        move_group.go(joint_goal, wait=True)
+        move_group.set_joint_value_target(self.default_joint_states)
 
-        # Calling ``stop()`` ensures that there is no residual movement
-        move_group.stop()
+        # Set the internal state to the current state
+        move_group.set_start_state_to_current_state()
+        plan = move_group.plan()
 
-        # For testing:
-        current_joints = move_group.get_current_joint_values()
-        return all_close(joint_goal, current_joints, 0.01)
+        move_group.execute(plan[1])
 
     def go_to_pose_goal(self,xs,ys,zs):
         # Here I'm planning a motion for this group
@@ -164,7 +156,8 @@ class MoveItContext(object):
         # bins' locations were retrieved from urdf
         group_name = "manipulator"
         move_group = moveit_commander.MoveGroupCommander(group_name)
-        
+        waypoints = []
+
         # Movement to get to the red bin
         wpose = move_group.get_current_pose().pose
         wpose.position.x -= scale * 0.5  # Move sideways (x)
@@ -187,6 +180,7 @@ class MoveItContext(object):
         # BINS' LOCATIONS: red_bin -y 0.8 -x -0.5 -z 0.05" / blue_bin -y 1.2 -x 0.0 -z 0.05" / yellow_bin -y 0.8 -x 0.5 -z 0.05
         group_name = "manipulator"
         move_group = moveit_commander.MoveGroupCommander(group_name)
+        waypoints = []
         
         # Movement to get to the blue bin
         # rotate
@@ -210,6 +204,8 @@ class MoveItContext(object):
         # yellow bin
         group_name = "manipulator"
         move_group = moveit_commander.MoveGroupCommander(group_name)
+        waypoints = []
+
         # BINS' LOCATIONS: yellow_bin -y 0.8 -x 0.5 -z 0.05
         # Movement to get to the yellow bin
         wpose = move_group.get_current_pose().pose

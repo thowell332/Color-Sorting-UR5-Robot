@@ -1,6 +1,9 @@
+# am715
+# Code for movement of sorting cubes
+
 # Duke University
 # ECE 495, Instructor Oca
-# BINS' LOCATIONS: red_bin -y 0.8 -x -0.5 -z 0.05" / blue_bin -y 1.2 -x 0.0 -z 0.05" / yellow_bin -y 0.8 -x 0.5 -z 0.05
+# BINS' LOCATIONS: red_bin -y 0.8 -x -0.5 -z 0.05" / blue_bin -y 1.2 -x 0.0 -z 0.05" / yellow_bin -y 0.8 -x 0.5 -z 0.05 - RETRIEVED FROM URDF
 
 # import everything that I might need
 from __future__ import print_function
@@ -13,7 +16,7 @@ import moveit_commander
 import moveit_msgs.msg
 import geometry_msgs.msg
 from ur5_notebook.msg import Tracker # for vision
-tracker.blockColor = 0
+tracker.blockColor = 0 # initialize
 tracker = Tracker()
 #import what is needed to calculate distance, angles and other mathematical parts
 from math import pi, tau, dist, fabs, cos, sqrt
@@ -70,8 +73,7 @@ class MoveItContext(object):
         group_name = "manipulator" #that's the arm planning group
         move_group = moveit_commander.MoveGroupCommander(group_name)
 
-        #can get name of reference frame for the robot, can also comment it out as
-        # I'm not using it
+        #can get name of reference frame for the robot
         planning_frame = move_group.get_planning_frame()
         end_effector_link = move_group.get_end_effector_link()
         #can also get a list of all the groups in the robot
@@ -80,7 +82,8 @@ class MoveItContext(object):
         # Allow replanning to increase the odds of a solution
         move_group.allow_replanning(True)
 
-        # Allow some leeway in position (meters) and orientation (radians)
+        # Allow some tolerance in position (meters) and orientation (radians)
+        # this makes the robot work better
         move_group.set_goal_position_tolerance(0.01)
         move_group.set_goal_orientation_tolerance(0.1)
 
@@ -111,6 +114,7 @@ class MoveItContext(object):
 
         # Specify default (idle) joint states
         self.default_joint_states = self.move_group.get_current_joint_values()
+        # each [number] represents a specific joint
         self.default_joint_states[0] = -1.57691
         self.default_joint_states[1] = -1.71667
         self.default_joint_states[2] = 1.79266
@@ -157,8 +161,11 @@ class MoveItContext(object):
     def plan_cartesian_path1(self, scale=1):
         # red bin
         # BINS' LOCATIONS: red_bin -y 0.8 -x -0.5 -z 0.05" / blue_bin -y 1.2 -x 0.0 -z 0.05" / yellow_bin -y 0.8 -x 0.5 -z 0.05
+        # bins' locations were retrieved from urdf
         group_name = "manipulator"
         move_group = moveit_commander.MoveGroupCommander(group_name)
+        
+        # Movement to get to the red bin
         wpose = move_group.get_current_pose().pose
         wpose.position.x -= scale * 0.5  # Move sideways (x)
         waypoints.append(copy.deepcopy(wpose))
@@ -180,9 +187,12 @@ class MoveItContext(object):
         # BINS' LOCATIONS: red_bin -y 0.8 -x -0.5 -z 0.05" / blue_bin -y 1.2 -x 0.0 -z 0.05" / yellow_bin -y 0.8 -x 0.5 -z 0.05
         group_name = "manipulator"
         move_group = moveit_commander.MoveGroupCommander(group_name)
+        
+        # Movement to get to the blue bin
         # rotate
-        joint_goal[0] = tau / 2 #base joint
+        joint_goal[0] = tau / 2 # base joint is rotated 180º
         wpose = move_group.get_current_pose().pose
+
         wpose.position.z -= scale * 0.1  # Then move down to second box
         waypoints.append(copy.deepcopy(wpose))
 
@@ -201,11 +211,12 @@ class MoveItContext(object):
         group_name = "manipulator"
         move_group = moveit_commander.MoveGroupCommander(group_name)
         # BINS' LOCATIONS: yellow_bin -y 0.8 -x 0.5 -z 0.05
+        # Movement to get to the yellow bin
         wpose = move_group.get_current_pose().pose
         wpose.position.x += scale * 0.5  # Move sideways (x)
         waypoints.append(copy.deepcopy(wpose))
 
-        wpose.position.z -= scale * 0.1  # Then move down to first box
+        wpose.position.z -= scale * 0.1  # Then move down to yellow box
         waypoints.append(copy.deepcopy(wpose))
 
         # Cartesian path is interpolated at a resolution of 1 cm and the jump threshold is disabled
@@ -243,6 +254,7 @@ def main():
     try:
         movecontext = MoveItContext()
 
+        # If the box is detected to be red
         if tracker.blockColor == 0:
             # Execute movement using joint state goal
             movecontext.go_to_joint_state()
@@ -255,6 +267,7 @@ def main():
             # Execute saved path
             movecontext.execute_plan(cartesian_plan)
 
+        # If the box is detected to be blue
         elif tracker.blockColor == 2:
             movecontext.go_to_joint_state()
             # Go to pose goal
@@ -266,6 +279,7 @@ def main():
             # Execute saved path
             movecontext.execute_plan(cartesian_plan)
 
+        # If the box is detected to be yellow
         elif tracker.blockColor == 1:
             movecontext.go_to_joint_state()
             # Go to pose goal
@@ -279,7 +293,6 @@ def main():
 
         print("============ Complete!")
 
-    # If I were to get inputs from user, I'm keeping it as I might modify the code later
     except rospy.ROSInterruptException:
         return
     except KeyboardInterrupt:

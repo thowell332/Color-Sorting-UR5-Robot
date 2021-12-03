@@ -137,13 +137,13 @@ class ur5_mp:
         self.arm.execute(plan[1])
 
         # Specify end states (drop object)
-        self.end_joint_states = deepcopy(self.default_joint_states) # hovering above the box
-        self.end_joint_states[0] = -3.65 # drop into the box
+        self.end_joint_states = deepcopy(self.default_joint_states) # inside the box
+        self.end_joint_states[0] = -3.65 
         # self.end_joint_states[1] = -1.3705
 
-        self.transition_pose = deepcopy(self.default_joint_states)
-        self.transition_pose[0] = -3.65 # Start from the dropped state
-        self.transition_pose[4] = -1.95 # lift up 
+        self.transition_pose = deepcopy(self.default_joint_states) # hovering above the box
+        self.transition_pose[0] = -3.65 
+        self.transition_pose[4] = -1.95
 
     # Function that stops the robot and shuts down moveit cleanly
     def cleanup(self):
@@ -203,13 +203,13 @@ class ur5_mp:
             # wpose.position.y = 0.2014
             # wpose.position.z = 0.4102
 
-            # If the number of points to execute is greater than 8, we have enough waypoints to do something!
+            # If we were tracking the block and we have a lot of waypoints appended, we are "holding a bloc"/should have picked up a block
             if len(self.pointx)>8:
                 # If the number of waypoints is equal to 9, alter the speed
                 if len(self.pointx)==9:
                     x_speed = np.mean(np.asarray(self.pointx[4:8]) - np.asarray(self.pointx[3:7]))
                     wpose.position.x += 2 * x_speed # scale the speed
-                    wpose.position.z = 0.05 # scale the position
+                    wpose.position.z = 0.05 # Move upwards
                 else:
                     # If the number of points if 11, publish the position
                     if len(self.pointx)==11:
@@ -271,17 +271,18 @@ class ur5_mp:
                         tracker.blockColor = 0 # Publish a color of red... this is arbitrary but the blockColor should be initialized before publishing
                         self.cxy_pub.publish(tracker) # Let the vacuum grippers know we are in position to let go of the box
 
+            # If you barely have any waypoints to execute right now (small distance to move)
             # Set the next waypoint to the right 0.5 meters
             else:
                 wpose.position.x -= self.error_x*0.05/105
                 wpose.position.y += self.error_y*0.04/105
                 wpose.position.z = 0.15
                 #wpose.position.z = 0.4005
-
+            # Track the block
             if self.phase == 1:
-                self.waypoints.append(deepcopy(wpose))
+                self.waypoints.append(deepcopy(wpose)) # Add the waypoint
 
-
+                # 
                 self.pointx.append(wpose.position.x)
                 self.pointy.append(wpose.position.y)
 
@@ -362,11 +363,8 @@ class ur5_mp:
             """
             plan, fraction = self.arm.compute_cartesian_path(self.waypoints, 0.01, 0.0, True)
 
-
-            # plan = self.arm.plan()
-
-            # If we have a complete plan, execute the trajectory
-            if 1-fraction < 0.2:
+            # If the path can be followed with 80% accuracy, this was successful and execute the trajectory
+            if 1-fraction < 0.2: 
                 rospy.loginfo("Path computed successfully. Moving the arm.")
                 num_pts = len(plan.joint_trajectory.points)
                 rospy.loginfo("\n# intermediate waypoints = "+str(num_pts))

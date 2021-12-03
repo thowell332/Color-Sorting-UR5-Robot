@@ -22,6 +22,7 @@
     http://www.gnu.org/licenses/gpl.html
 """
 
+from os import posix_fallocate
 import rospy, sys, numpy as np
 import moveit_commander
 from copy import deepcopy
@@ -138,13 +139,28 @@ class ur5_mp:
         self.arm.execute(plan[1])
 
         # Specify end states (drop object)
-        self.end_joint_states = deepcopy(self.default_joint_states) # inside the box
-        self.end_joint_states[0] = -3.65 
-        # self.end_joint_states[1] = -1.3705
+        self.end_joint_states_red = deepcopy(self.default_joint_states) # inside the box
+        self.end_joint_states_red[0] = 0.21
 
-        self.transition_pose = deepcopy(self.default_joint_states) # hovering above the box
-        self.transition_pose[0] = -3.65 
-        self.transition_pose[4] = -1.95
+        self.transition_pose_red = deepcopy(self.default_joint_states) # hovering above the box
+        self.transition_pose_red[0] = 0.21
+        self.transition_pose_red[4] = -1.95
+
+        # Blue
+        self.end_joint_states_blue = deepcopy(self.default_joint_states) # inside the box
+        self.end_joint_states_blue[0] = -3.65
+
+        self.transition_pose_blue = deepcopy(self.default_joint_states) # hovering above the box
+        self.transition_pose_blue[0] = -3.65
+        self.transition_pose_blue[4] = -1.95
+
+        # Yellow
+        self.end_joint_states_yellow = deepcopy(self.default_joint_states) # inside the box
+        self.end_joint_states_yellow[0] = 1.57
+
+        self.transition_pose_yellow = deepcopy(self.default_joint_states) # hovering above the box
+        self.transition_pose_yellow[0] = 1.57
+        self.transition_pose_yellow[4] = -1.95
 
     # Function that stops the robot and shuts down moveit cleanly
     def cleanup(self):
@@ -168,7 +184,9 @@ class ur5_mp:
         self.cy = msg.y # Communicates the y location
         self.error_x = msg.error_x
         self.error_y = msg.error_y
-        self.blockColor = msg.blockColor # Get the current block color
+        self.blockColor = msg.blockColor
+        #print(msg.blockColor)
+        #self.blockColor = msg.blockColor # Get the current block color
         # track when you have a 9 waypoints, you are definitely tracking. Make sure it knows you are tracking
         if len(self.pointx)>9:
             self.track_flag = True
@@ -231,7 +249,7 @@ class ur5_mp:
                         transition_pose = deepcopy(start_pose) # and move to the starting position
                         transition_pose.position.z = 0.4000 # Move the arm up
 
-                        # Move to the transition pose (i.e. lift up from the conveyer belt)
+                        # Lift up from the conveyer belt
                         self.waypoints.append(deepcopy(transition_pose))
                         self.arm.set_start_state_to_current_state()
                         plan, fraction = self.arm.compute_cartesian_path(self.waypoints, 0.02, 0.0, True)
@@ -241,14 +259,20 @@ class ur5_mp:
                         self.arm.set_max_acceleration_scaling_factor(.15)
                         self.arm.set_max_velocity_scaling_factor(.25)
 
-                        # set the joint to go to self.transition_pose (hovering above the box)
-                        self.arm.set_joint_value_target(self.transition_pose)
+                        # Hover above the box
+                        '''if(self.blockColor == 0):# 0 means red
+                            self.arm.set_joint_value_target(self.transition_pose_red)
+                        elif(self.blockColor == 1):# 1 means yellow
+                            self.arm.set_joint_value_target(self.transition_pose_yellow)
+                        else:
+                            self.arm.set_joint_value_target(self.transition_pose_blue)'''
+                        self.arm.set_joint_value_target(self.transition_pose_yellow)
                         self.arm.set_start_state_to_current_state()
                         plan = self.arm.plan() # returns a motiion plan based on the joints arguement
                         self.arm.execute(plan[1])
 
-                        # set the joint to go to the end_joint_states (dropping in the box)
-                        self.arm.set_joint_value_target(self.end_joint_states)
+                        # Dip into the box
+                        self.arm.set_joint_value_target(self.end_joint_states_yellow)
                         self.arm.set_start_state_to_current_state()
                         plan = self.arm.plan()
                         self.arm.execute(plan[1])
@@ -262,7 +286,9 @@ class ur5_mp:
                         self.waypoints = []
                         start_pose = self.arm.get_current_pose(self.end_effector_link).pose
                         transition_pose = deepcopy(start_pose) # get the position of the end effector
-                        transition_pose.position.x -= 0.1 # go left a bit from your current position
+                        #transition_pose.position.y += 0.05                        
+                        # #transition_pose.position.x += 0.1 # go left a bit from your current position
+                        #transition_pose.position.x -= 0.1 # go left a bit from your current position
                         transition_pose.position.z = -0.1 + self.object_cnt*0.025 # go up an amount dependent on the number of objects in the box
                         self.waypoints.append(deepcopy(transition_pose)) 
 

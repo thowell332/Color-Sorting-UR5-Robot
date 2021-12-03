@@ -173,6 +173,7 @@ class ur5_vision:
         else:
             self.track_flag = False
             tracker.flag1 = self.track_flag
+            tracker.blockColor = -1
 
         self.cxy_pub.publish(tracker)
         cv2.namedWindow("window", 1)

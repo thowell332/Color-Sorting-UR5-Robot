@@ -45,14 +45,15 @@ class ur5_mp:
         self.cxy_sub = rospy.Subscriber('cxy', Tracker, self.tracking_callback, queue_size=1)
         # publish to cxy1 (send to vacuum grippers)
         self.cxy_pub = rospy.Publisher('cxy1', Tracker, queue_size=1)
-        self.phase = 1
-        self.object_cnt = 0
-        self.track_flag = False
-        self.default_pose_flag = True
+        self.phase = 1 # Tracking the block --> being inside the box, becomes phase = 2 dropped the block --> to default position
+        self.object_cnt = 0 # How many objects are in the bin
+        self.track_flag = False # Tracking the block versus picked up the block
+        self.default_pose_flag = True # Are we in the default pose (looking at the conveyer belt)
         self.cx = 400.0 # center of image (800x800)
         self.cy = 400.0 # center of image (800x800)
         self.points=[]
         self.state_change_time = rospy.Time.now()
+        self.blockColor = 0 # Default block color is red
 
         rospy.loginfo("Starting node moveit_cartesian_path")
 
@@ -167,21 +168,25 @@ class ur5_mp:
         self.cy = msg.y # Communicates the y location
         self.error_x = msg.error_x
         self.error_y = msg.error_y
-        # track when you have a certain number of waypoints
+        self.blockColor = msg.blockColor # Get the current block color
+        # track when you have a 9 waypoints, you are definitely tracking. Make sure it knows you are tracking
         if len(self.pointx)>9:
             self.track_flag = True
+        
+        # Phase 2 means you have dropped the block in a box and want ot come back to starting position
         if self.phase == 2:
             self.track_flag = False
             self.phase = 1
-        # When the robot is in the right position and we want to follow a block, execute tracking the block
+
+        # We have detected a block (track_flag=1), the first waypoint is centered appropriately and ready to go!
         if (self.track_flag and -0.6 < self.waypoints[0].position.x and self.waypoints[0].position.x < 0.6):
             self.execute()
-            self.default_pose_flag = False
-        # If you don't want to track the block or if you aren't in the correct range, don't track the block but try to put it in a box
+            self.default_pose_flag = False # We are no longer in the default pose
+        # We are not tracking or we are not in range so return to the default position
         else: 
-            if not self.default_pose_flag: # If you aren't at the center position, stop tracking the conveyer belt and execute the position
-                self.track_flag = False
-                self.execute()
+            if not self.default_pose_flag: # If you have seen something but are not centered (either holding the block on on the way back)
+                self.track_flag = False # Disable tracking
+                self.execute() # Continue executing
                 self.default_pose_flag = True
 
     # Called by tracking_callback to execute different functions based on flags
@@ -189,7 +194,7 @@ class ur5_mp:
 
         # If you are tracking the block....
         if self.track_flag:
-            # Get the current pose so we can add it as a waypoint
+            # Get the current pose
             start_pose = self.arm.get_current_pose(self.end_effector_link).pose
 
             # Initialize the waypoints list
@@ -203,42 +208,43 @@ class ur5_mp:
             # wpose.position.y = 0.2014
             # wpose.position.z = 0.4102
 
-            # If we were tracking the block and we have a lot of waypoints appended, we are "holding a bloc"/should have picked up a block
+            # We have tracked the block for more than 8 iterations
             if len(self.pointx)>8:
-                # If the number of waypoints is equal to 9, alter the speed
+                # If the number of waypoints is equal to 9, alter the speed to hover above the block
                 if len(self.pointx)==9:
                     x_speed = np.mean(np.asarray(self.pointx[4:8]) - np.asarray(self.pointx[3:7]))
                     wpose.position.x += 2 * x_speed # scale the speed
                     wpose.position.z = 0.05 # Move upwards
                 else:
-                    # If the number of points if 11, publish the position
+                    # We are ready to pick the block up! Send a message to the vaccuum grippers
                     if len(self.pointx)==11:
-                        tracker.flag2 = 1
-                        tracker.blockColor = 0
+                        tracker.flag2 = 1 # flag 2 = in position to pick up
+                        tracker.blockColor = 0 # tell it the block is red. This doesn't matter to the vaccuum grippers
                         self.cxy_pub.publish(tracker)
                     # If less than 12 points, move a little faster
-                    if len(self.pointx)<12:
+                    if len(self.pointx)<12: # 10 and 11 iterations
                         x_speed = np.mean(np.asarray(self.pointx[4:8])-np.asarray(self.pointx[3:7]))
                         wpose.position.x += (x_speed-self.error_x*0.015/105)
-                    else: # If we are greater than or equal to 12, you have a lot of waypoints you probably have a block
-                        if tracker.flag2: # If you are holding a block
-                            self.track_flag=False # Stop tracking
+                    else: # You are holding a block (at least you should be holding a block)
+                        if tracker.flag2: # 1 when vacuum gripper should have picked up a block
+                            self.track_flag=False # Stop tracking since you are holding the block
                         transition_pose = deepcopy(start_pose) # and move to the starting position
                         transition_pose.position.z = 0.4000 # Move the arm up
 
-                        # Move to the transition pose (dropping the block in the bin)
+                        # Move to the transition pose (i.e. lift up from the conveyer belt)
                         self.waypoints.append(deepcopy(transition_pose))
                         self.arm.set_start_state_to_current_state()
                         plan, fraction = self.arm.compute_cartesian_path(self.waypoints, 0.02, 0.0, True)
                         self.arm.execute(plan) # execute (moveit_commander, not this class's execute)
 
+                        # Adjust the max_acceleration and velocity to be slower
                         self.arm.set_max_acceleration_scaling_factor(.15)
                         self.arm.set_max_velocity_scaling_factor(.25)
 
-                        # set the joint to go to the transition_pose (hovering above the box)
+                        # set the joint to go to self.transition_pose (hovering above the box)
                         self.arm.set_joint_value_target(self.transition_pose)
                         self.arm.set_start_state_to_current_state()
-                        plan = self.arm.plan()
+                        plan = self.arm.plan() # returns a motiion plan based on the joints arguement
                         self.arm.execute(plan[1])
 
                         # set the joint to go to the end_joint_states (dropping in the box)
@@ -252,63 +258,48 @@ class ur5_mp:
                         if -0.1+0.02*self.object_cnt<0.2:
                             self.object_cnt += 1
 
-                        # Adjust the transition pose based on the number of objects in the box
+                        # Add waypoint to drop into the box depending on how many things are in there
                         self.waypoints = []
                         start_pose = self.arm.get_current_pose(self.end_effector_link).pose
                         transition_pose = deepcopy(start_pose) # get the position of the end effector
-                        transition_pose.position.x -= 0.1 # go left a bit
+                        transition_pose.position.x -= 0.1 # go left a bit from your current position
                         transition_pose.position.z = -0.1 + self.object_cnt*0.025 # go up an amount dependent on the number of objects in the box
-                        self.waypoints.append(deepcopy(transition_pose)) # drop the object in the box
+                        self.waypoints.append(deepcopy(transition_pose)) 
 
-                        # execute the motion plan and move up to the transition pose
+                        # Execute the motion plan
                         self.arm.set_start_state_to_current_state()
                         plan, fraction = self.arm.compute_cartesian_path(self.waypoints, 0.02, 0.0, True)
                         self.arm.execute(plan)
 
-                        # After you are in the transition pose (the block has been dropped into the box)
+                        # Indicate to the vaccuum grippers to release. We are now in phase 2.
                         self.phase = 2
-                        tracker.flag2 = 0 #Set flag 2 to 0
+                        tracker.flag2 = 0 # tell vaccuum grippers to release
                         tracker.blockColor = 0 # Publish a color of red... this is arbitrary but the blockColor should be initialized before publishing
                         self.cxy_pub.publish(tracker) # Let the vacuum grippers know we are in position to let go of the box
 
-            # If you barely have any waypoints to execute right now (small distance to move)
-            # Set the next waypoint to the right 0.5 meters
+            # Center the end effector over the center of the block
+            # Robot has seen the block and is trying to center itself over the block
+            # Keep following the block to the right by 0.5 meters so it says on screen
             else:
                 wpose.position.x -= self.error_x*0.05/105
                 wpose.position.y += self.error_y*0.04/105
                 wpose.position.z = 0.15
                 #wpose.position.z = 0.4005
-            # Track the block
+            # In the first phase (we are following the block and need to pick it up), follow the block and keep executing
             if self.phase == 1:
-                self.waypoints.append(deepcopy(wpose)) # Add the waypoint
+                self.waypoints.append(deepcopy(wpose)) # Append the waypoint to the list
 
-                # 
+                # Set pointx and pointy to hold the position of the last appended pose
                 self.pointx.append(wpose.position.x)
                 self.pointy.append(wpose.position.y)
 
                 # Set the internal state to the current state
-                # self.arm.set_pose_target(wpose)
-
                 self.arm.set_start_state_to_current_state()
 
                 # Plan the Cartesian path connecting the waypoints
-
-                """moveit_commander.move_group.MoveGroupCommander.compute_cartesian_path(
-                        self, waypoints, eef_step, jump_threshold, avoid_collisios= True)
-
-                   Compute a sequence of waypoints that make the end-effector move in straight line segments that follow the
-                   poses specified as waypoints. Configurations are computed for every eef_step meters;
-                   The jump_threshold specifies the maximum distance in configuration space between consecutive points
-                   in the resultingpath. The return value is a tuple: a fraction of how much of the path was followed,
-                   the actual RobotTrajectory.
-
-                """
                 plan, fraction = self.arm.compute_cartesian_path(self.waypoints, 0.01, 0.0, True)
 
-
-                # plan = self.arm.plan()
-
-                # If we have a complete plan, execute the trajectory
+                # With 80% accuracy in trajectory, execute the path
                 if 1-fraction < 0.2:
                     rospy.loginfo("Path computed successfully. Moving the arm.")
                     num_pts = len(plan.joint_trajectory.points)
@@ -318,7 +309,7 @@ class ur5_mp:
                 else:
                     rospy.loginfo("Path planning failed")
 
-        else:
+        else: # We are not tracking yet (phase 2)
             # Get the current pose so we can add it as a waypoint
             start_pose = self.arm.get_current_pose(self.end_effector_link).pose
 
@@ -330,8 +321,7 @@ class ur5_mp:
             # Append the pose to the waypoints list
             wpose = deepcopy(start_pose)
 
-            # Set the next waypoint to the right 0.5 meters
-
+            # Set the next waypoint to the default state so that we can look for something to track
             wpose.position.x = 0.1052
             wpose.position.y = -0.4271
             wpose.position.z = 0.4005
@@ -350,17 +340,6 @@ class ur5_mp:
             self.arm.set_start_state_to_current_state()
 
             # Plan the Cartesian path connecting the waypoints
-
-            """moveit_commander.move_group.MoveGroupCommander.compute_cartesian_path(
-                    self, waypoints, eef_step, jump_threshold, avoid_collisios= True)
-
-               Compute a sequence of waypoints that make the end-effector move in straight line segments that follow the
-               poses specified as waypoints. Configurations are computed for every eef_step meters;
-               The jump_threshold specifies the maximum distance in configuration space between consecutive points
-               in the resultingpath. The return value is a tuple: a fraction of how much of the path was followed,
-               the actual RobotTrajectory.
-
-            """
             plan, fraction = self.arm.compute_cartesian_path(self.waypoints, 0.01, 0.0, True)
 
             # If the path can be followed with 80% accuracy, this was successful and execute the trajectory

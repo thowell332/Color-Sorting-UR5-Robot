@@ -225,7 +225,7 @@ class ur5_mp:
             # wpose.position.x = -0.5215
             # wpose.position.y = 0.2014
             # wpose.position.z = 0.4102
-
+            print(self.pointx)
             # We have tracked the block for more than 8 iterations
             if len(self.pointx)>8:
                 # If the number of waypoints is equal to 9, alter the speed to hover above the block
@@ -259,7 +259,7 @@ class ur5_mp:
                         self.arm.set_max_acceleration_scaling_factor(.15)
                         self.arm.set_max_velocity_scaling_factor(.25)
 
-                        # Hover above the box
+                        # Hover above the box (ee position will be off though)
                         '''if(self.blockColor == 0):# 0 means red
                             self.arm.set_joint_value_target(self.transition_pose_red)
                         elif(self.blockColor == 1):# 1 means yellow
@@ -271,7 +271,7 @@ class ur5_mp:
                         plan = self.arm.plan() # returns a motiion plan based on the joints arguement
                         self.arm.execute(plan[1])
 
-                        # Dip into the box
+                        # Move joint states to their final position (ee facing down)
                         self.arm.set_joint_value_target(self.end_joint_states_yellow)
                         self.arm.set_start_state_to_current_state()
                         plan = self.arm.plan()
@@ -292,15 +292,42 @@ class ur5_mp:
                         transition_pose.position.z = -0.1 + self.object_cnt*0.025 # go up an amount dependent on the number of objects in the box
                         self.waypoints.append(deepcopy(transition_pose)) 
 
-                        # Execute the motion plan
-                        self.arm.set_start_state_to_current_state()
-                        plan, fraction = self.arm.compute_cartesian_path(self.waypoints, 0.02, 0.0, True)
+                        # Execute the motion plan to drop into the box
+                        #self.arm.set_start_state_to_current_state()
+                        #plan, fraction = self.arm.compute_cartesian_path(self.waypoints, 0.02, 0.0, True)
 
                         # Indicate to the vaccuum grippers to release. We are now in phase 2.
                         self.phase = 2
                         tracker.flag2 = 0 # tell vaccuum grippers to release
                         tracker.blockColor = 0 # Publish a color of red... this is arbitrary but the blockColor should be initialized before publishing
                         self.cxy_pub.publish(tracker) # Let the vacuum grippers know we are in position to let go of the box
+
+                        # Come back to center... we need to hand hold this robot back to a reasonable position if the robot is yellow
+                        start_pose = self.arm.get_current_pose(self.end_effector_link).pose
+                        transition_pose = deepcopy(start_pose)
+                        transition_pose.position.y -= 0.05 # reverse reverse!
+                        transition_pose.position.z = 0.1 - self.object_cnt*0.025 # reverse reverse!
+                        self.waypoints.append(deepcopy(transition_pose)) # cha cha real smooth...
+
+                        # Plan the Cartesian path connecting the waypoints
+                        plan, fraction = self.arm.compute_cartesian_path(self.waypoints, 0.01, 0.0, True)
+
+                        # If the path can be followed with 80% accuracy, this was successful and execute the trajectory
+                        if 1-fraction < 0.2: 
+                            rospy.loginfo("Path computed successfully. Moving the arm.")
+                            num_pts = len(plan.joint_trajectory.points)
+                            rospy.loginfo("\n# intermediate waypoints = "+str(num_pts))
+                            self.arm.execute(plan)
+                            rospy.loginfo("Path execution complete.")
+                        else:
+                            rospy.loginfo("Path planning failed")
+
+                        # Let's hand hold the robot so we don't hit singularities yay!
+                        # Move to the red position if yellow
+                        self.arm.set_joint_value_target(self.end_joint_states_red)
+                        self.arm.set_start_state_to_current_state()
+                        plan = self.arm.plan()
+                        self.arm.execute(plan[1])
 
             # Center the end effector over the center of the block
             # Robot has seen the block and is trying to center itself over the block

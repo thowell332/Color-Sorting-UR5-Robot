@@ -266,13 +266,13 @@ class ur5_mp:
                             self.arm.set_joint_value_target(self.transition_pose_yellow)
                         else:
                             self.arm.set_joint_value_target(self.transition_pose_blue)'''
-                        self.arm.set_joint_value_target(self.transition_pose_yellow)
+                        self.arm.set_joint_value_target(self.transition_pose_yellow) # Change this line depending on color
                         self.arm.set_start_state_to_current_state()
                         plan = self.arm.plan() # returns a motiion plan based on the joints arguement
                         self.arm.execute(plan[1])
 
                         # Dip into the box
-                        self.arm.set_joint_value_target(self.end_joint_states_yellow)
+                        self.arm.set_joint_value_target(self.end_joint_states_yellow) # Change this line depending on color
                         self.arm.set_start_state_to_current_state()
                         plan = self.arm.plan()
                         self.arm.execute(plan[1])

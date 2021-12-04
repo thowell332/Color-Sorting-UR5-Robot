@@ -286,16 +286,15 @@ class ur5_mp:
                         self.waypoints = []
                         start_pose = self.arm.get_current_pose(self.end_effector_link).pose
                         transition_pose = deepcopy(start_pose) # get the position of the end effector
-                        #transition_pose.position.y += 0.05                        
-                        # #transition_pose.position.x += 0.1 # go left a bit from your current position
-                        #transition_pose.position.x -= 0.1 # go left a bit from your current position
+                        transition_pose.position.y += 0.05  # Leave this line for Yellow                      
+                        # #transition_pose.position.x += 0.1 # Leave this line for blue # go left a bit from your current position
+                        #transition_pose.position.x -= 0.1 # Leave this line for red # go left a bit from your current position
                         transition_pose.position.z = -0.1 + self.object_cnt*0.025 # go up an amount dependent on the number of objects in the box
                         self.waypoints.append(deepcopy(transition_pose)) 
 
                         # Execute the motion plan
                         self.arm.set_start_state_to_current_state()
                         plan, fraction = self.arm.compute_cartesian_path(self.waypoints, 0.02, 0.0, True)
-                        self.arm.execute(plan)
 
                         # Indicate to the vaccuum grippers to release. We are now in phase 2.
                         self.phase = 2
@@ -334,6 +333,19 @@ class ur5_mp:
                     rospy.loginfo("Path execution complete.")
                 else:
                     rospy.loginfo("Path planning failed")
+
+            # Correct yourself if you are going to put something in the yellow bin
+            '''if self.phase == 2:
+                start_pose = self.arm.get_current_pose(self.end_effector_link).pose
+                wpose = deepcopy(start_pose)
+                wpose.position.y -= 0.05
+                self.waypoints.append(deepcopy(wpose))
+                print(self.waypoints)
+
+                # Execute the motion plan
+                self.arm.set_start_state_to_current_state()
+                plan, fraction = self.arm.compute_cartesian_path(self.waypoints, 0.02, 0.0, True)
+            '''
 
         else: # We are not tracking yet (phase 2)
             # Get the current pose so we can add it as a waypoint

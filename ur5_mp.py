@@ -138,10 +138,11 @@ class ur5_mp:
 
         self.arm.execute(plan[1])
 
-        # Specify end states (drop object)
+        # Specify poses for red
+        # End Joint States specify the pose where we drop the object
         self.end_joint_states_red = deepcopy(self.default_joint_states) # inside the box
         self.end_joint_states_red[0] = 0.21
-
+        # Transition poses specify the pose where we are hovering above the box but haven't dropped the object
         self.transition_pose_red = deepcopy(self.default_joint_states) # hovering above the box
         self.transition_pose_red[0] = 0.21
         self.transition_pose_red[4] = -1.95
@@ -156,10 +157,10 @@ class ur5_mp:
 
         # Yellow
         self.end_joint_states_yellow = deepcopy(self.default_joint_states) # inside the box
-        self.end_joint_states_yellow[0] = 1.57
+        self.end_joint_states_yellow[0] = 1.5
 
         self.transition_pose_yellow = deepcopy(self.default_joint_states) # hovering above the box
-        self.transition_pose_yellow[0] = 1.57
+        self.transition_pose_yellow[0] = 1.5
         self.transition_pose_yellow[4] = -1.95
 
     # Function that stops the robot and shuts down moveit cleanly
@@ -178,19 +179,24 @@ class ur5_mp:
     # This is the main method that is called that describes the workflow
     def tracking_callback(self, msg):
 
-        # Define parameters
-        self.track_flag = msg.flag1
-        self.cx = msg.x # Communicates the x location
-        self.cy = msg.y # Communicates the y location
-        self.error_x = msg.error_x
-        self.error_y = msg.error_y
+        # When you have enough waypoints, 
+        # stop looking for new blocks and stop trying to grab the block you are already holding
+        if len(self.pointx)<9:
+            self.track_flag = msg.flag1
+            if len(self.pointx) == 7: # With 7 way points, you have the block in sight but haven't picked it up yet
+                self.blockColor = msg.blockColor # Only look at the block color when you are ready to grab the block
+        
+        # If we are tracking, update the location and error
+        if(self.track_flag):
+            self.cx = msg.x # Communicates the x location
+            self.cy = msg.y # Communicates the y location
+            self.error_x = msg.error_x
+            self.error_y = msg.error_y
         #print(msg.blockColor)
         #self.blockColor = msg.blockColor # Get the current block color
         # track when you have a 9 waypoints, you are definitely tracking. Make sure it knows you are tracking
         if len(self.pointx)>9:
             self.track_flag = True
-            if len(self.pointx) == 10: # With 10 way points, you have the block in sight but haven't picked it up yet
-                self.blockColor = msg.blockColor
         # Phase 2 means you have dropped the block in a box and want ot come back to starting position
         if self.phase == 2:
             self.track_flag = False
@@ -295,55 +301,33 @@ class ur5_mp:
                         rospy.loginfo("The block is " + str(self.blockColor))
                         if(self.blockColor == 1): # If yellow
                             transition_pose.position.y += 0.05 
-                        elif(self.blockColor == 0): # If red
+                        if(self.blockColor == 0 or self.blockColor == 1): # If red or yellow
                             transition_pose.position.x += 0.1
-                        elif(self.blockColor == 2): # If blue
+                        if(self.blockColor == 2 ): # If blue
                             transition_pose.position.x -= 0.1
                         transition_pose.position.z = -0.1 + self.object_cnt*0.025 # go up an amount dependent on the number of objects in the box
                         self.waypoints.append(deepcopy(transition_pose))
 
-                        # Execute the motion plan to drop into the box
-                        if(not yellowAlert):
-                            self.arm.set_start_state_to_current_state()
-                            plan, fraction = self.arm.compute_cartesian_path(self.waypoints, 0.02, 0.0, True)
-
-                            # Execute the movement if the path was planned correctly
-                            if 1-fraction < 0.2: 
-                                rospy.loginfo("Path computed successfully. Moving the arm.")
-                                num_pts = len(plan.joint_trajectory.points)
-                                rospy.loginfo("\n# intermediate waypoints = "+str(num_pts))
-                                self.arm.execute(plan)
-                                rospy.loginfo("Path execution complete.")
-                            else:
-                                rospy.loginfo("Path planning failed")
-
+                        self.arm.set_start_state_to_current_state()
+                        plan, fraction = self.arm.compute_cartesian_path(self.waypoints, 0.02, 0.0, True)
+                        # Execute the movement if the path was planned correctly
+                        if 1-fraction < 0.2: 
+                            rospy.loginfo("Path computed successfully. Moving the arm.")
+                            num_pts = len(plan.joint_trajectory.points)
+                            rospy.loginfo("\n# intermediate waypoints = "+str(num_pts))
+                            self.arm.execute(plan)
+                            rospy.loginfo("Path execution complete.")
+                        else:
+                            rospy.loginfo("Path planning failed")                            
+                            
                         # Indicate to the vaccuum grippers to release. We are now in phase 2 (returning to default pose)
                         self.phase = 2
                         tracker.flag2 = 0 # tell vaccuum grippers to release
                         tracker.blockColor = 0 # Publish a color of red... this is arbitrary but the blockColor should be initialized before publishing
                         self.cxy_pub.publish(tracker) # Let the vacuum grippers know we are in position to let go of the box
-
-                        if(yellowAlert): # If yellow, take necessary actions to prevent a singularity
-                            # Come back to center... we need to hand hold this robot back to a reasonable position if the robot is yellow
-                            start_pose = self.arm.get_current_pose(self.end_effector_link).pose
-                            transition_pose = deepcopy(start_pose)
-                            transition_pose.position.y -= 0.05 # reverse reverse!
-                            transition_pose.position.z = 0.1 - self.object_cnt*0.025 # reverse reverse!
-                            self.waypoints.append(deepcopy(transition_pose)) # cha cha real smooth...
-
-                            # Plan the Cartesian path connecting the waypoints
-                            plan, fraction = self.arm.compute_cartesian_path(self.waypoints, 0.01, 0.0, True)
-
-                            # If the path can be followed with 80% accuracy, this was successful and execute the trajectory
-                            if 1-fraction < 0.2: 
-                                rospy.loginfo("Path computed successfully. Moving the arm.")
-                                num_pts = len(plan.joint_trajectory.points)
-                                rospy.loginfo("\n# intermediate waypoints = "+str(num_pts))
-                                self.arm.execute(plan)
-                                rospy.loginfo("Path execution complete.")
-                            else:
-                                rospy.loginfo("Path planning failed")
-
+                        
+                        # If yellow, take necessary actions to prevent a singularity
+                        if(yellowAlert): 
                             # Let's hand hold the robot so we don't hit singularities yay!
                             # Move to the red position if yellow
                             self.arm.set_joint_value_target(self.end_joint_states_red)

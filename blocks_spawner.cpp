@@ -292,7 +292,7 @@
           ROS_INFO_STREAM("");
 
           ros::spinOnce();
-          ros::Duration(20.0).sleep();  // frequency control, spawn one cylinder in each loop
+          ros::Duration(30.0).sleep();  // frequency control, spawn one cylinder in each loop
           // delay time decides density of the cylinders
 
 
